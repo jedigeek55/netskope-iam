@@ -19,7 +19,8 @@ target_metadata = Base.metadata
 
 
 def get_url() -> str:
-    return os.getenv("DATABASE_URL", "postgresql://iam:iam_dev_password@localhost/netskope_iam")
+    from app.config import settings
+    return os.getenv("DATABASE_URL", settings.database_url)
 
 
 def run_migrations_offline() -> None:
