@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Edit Group' if editing else 'New Group' }} — Netskope IAM{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="/ui/groups">Groups</a></li>
+      <li class="breadcrumb-item active">{{ 'Edit' if editing else 'New Group' }}</li>
+    </ol>
+  </nav>
+  <h4 class="fw-bold mb-0">{{ 'Edit Group' if editing else 'Create New Group' }}</h4>
+</div>
+
+<div class="row">
+  <div class="col-lg-6">
+    <div class="card border-0 shadow-sm">
+      <div class="card-body p-4">
+        {% if error %}
+        <div class="alert alert-danger d-flex align-items-center gap-2">
+          <i class="bi bi-exclamation-triangle-fill"></i> {{ error }}
+        </div>
+        {% endif %}
+
+        <form method="post" action="{{ action }}">
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Group Name <span class="text-danger">*</span></label>
+            <input type="text" name="display_name" class="form-control" required
+                   value="{{ editing.display_name if editing else (form.display_name if form else '') }}"
+                   placeholder="e.g. Engineering, Sales, VPN-Users">
+            <div class="form-text">This name is used as the SCIM displayName when syncing to Netskope.</div>
+          </div>
+
+          <div class="mb-4">
+            <label class="form-label fw-semibold">Description</label>
+            <textarea name="description" class="form-control" rows="3"
+                      placeholder="Optional description">{{ editing.description if editing else (form.description if form else '') }}</textarea>
+          </div>
+
+          {% if editing and editing.scim_id %}
+          <div class="mb-4 p-3 rounded" style="background:#f8f9fa">
+            <div class="small text-muted mb-1">SCIM ID (Netskope)</div>
+            <code class="small">{{ editing.scim_id }}</code>
+          </div>
+          {% endif %}
+
+          <div class="d-flex gap-2">
+            <button type="submit" class="btn btn-primary px-4">
+              <i class="bi bi-check-lg me-1"></i>{{ 'Save Changes' if editing else 'Create Group' }}
+            </button>
+            <a href="/ui/groups" class="btn btn-outline-secondary">Cancel</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

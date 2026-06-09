@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Netskope IAM{% endblock %}</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+  <style>
+    body { background: #f4f6fb; }
+    .sidebar {
+      width: 230px; min-height: 100vh;
+      background: linear-gradient(180deg, #0d1b2a 0%, #1b2a3b 100%);
+      display: flex; flex-direction: column;
+    }
+    .sidebar .brand {
+      color: #fff; font-weight: 700; font-size: 1.1rem;
+      padding: 1.5rem 1.25rem 1rem; border-bottom: 1px solid rgba(255,255,255,.1);
+    }
+    .sidebar .brand i { color: #3b9ddd; }
+    .sidebar .nav { padding: .75rem .75rem; flex: 1; }
+    .sidebar .nav-link {
+      color: rgba(255,255,255,.65); border-radius: 8px;
+      padding: .55rem 1rem; margin-bottom: 2px;
+      transition: all .15s;
+    }
+    .sidebar .nav-link:hover { color: #fff; background: rgba(255,255,255,.08); }
+    .sidebar .nav-link.active { color: #fff; background: #3b9ddd; }
+    .sidebar .nav-link i { width: 20px; }
+    .sidebar-footer {
+      padding: .75rem; border-top: 1px solid rgba(255,255,255,.1);
+    }
+    .sidebar-footer .nav-link { color: rgba(255,255,255,.5); font-size: .875rem; }
+    .sidebar-footer .nav-link:hover { color: #ff6b6b; background: rgba(255,107,107,.1); }
+    .main-content { flex: 1; padding: 2rem; min-width: 0; }
+    .page-header { margin-bottom: 1.5rem; }
+    .table th { font-size: .8rem; text-transform: uppercase; letter-spacing: .05em; color: #6c757d; }
+    .badge-scim { font-size: .7rem; background: #e8f4f8; color: #0d6efd; border: 1px solid #bee5f8; }
+  </style>
+</head>
+<body>
+<div class="d-flex" style="min-height:100vh">
+
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <div class="brand">
+      <i class="bi bi-shield-lock me-2"></i>IAM Server
+    </div>
+    <nav class="nav flex-column">
+      <a href="/ui/dashboard" class="nav-link {% if active == 'dashboard' %}active{% endif %}">
+        <i class="bi bi-speedometer2 me-2"></i>Dashboard
+      </a>
+      <a href="/ui/users" class="nav-link {% if active == 'users' %}active{% endif %}">
+        <i class="bi bi-people me-2"></i>Users
+      </a>
+      <a href="/ui/groups" class="nav-link {% if active == 'groups' %}active{% endif %}">
+        <i class="bi bi-collection me-2"></i>Groups
+      </a>
+    </nav>
+    <div class="sidebar-footer">
+      {% if current_user %}
+      <div class="px-2 mb-2" style="color:rgba(255,255,255,.4); font-size:.8rem">
+        <i class="bi bi-person-circle me-1"></i>{{ current_user.email }}
+      </div>
+      {% endif %}
+      <a href="/ui/logout" class="nav-link">
+        <i class="bi bi-box-arrow-left me-2"></i>Logout
+      </a>
+    </div>
+  </div>
+
+  <!-- Main content -->
+  <div class="main-content">
+    {% if success %}
+    <div class="alert alert-success alert-dismissible fade show d-flex align-items-center gap-2" role="alert">
+      <i class="bi bi-check-circle-fill"></i> {{ success }}
+      <button type="button" class="btn-close ms-auto" data-bs-dismiss="alert"></button>
+    </div>
+    {% endif %}
+    {% if error %}
+    <div class="alert alert-danger alert-dismissible fade show d-flex align-items-center gap-2" role="alert">
+      <i class="bi bi-exclamation-triangle-fill"></i> {{ error }}
+      <button type="button" class="btn-close ms-auto" data-bs-dismiss="alert"></button>
+    </div>
+    {% endif %}
+    {% block content %}{% endblock %}
+  </div>
+
+</div>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

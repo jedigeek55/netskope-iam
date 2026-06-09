@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block title %}Groups — Netskope IAM{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex align-items-center justify-content-between">
+  <div>
+    <h4 class="fw-bold mb-1">Groups</h4>
+    <p class="text-muted mb-0">{{ groups|length }} group{{ 's' if groups|length != 1 }}</p>
+  </div>
+  <a href="/ui/groups/new" class="btn btn-primary">
+    <i class="bi bi-collection me-1"></i>New Group
+  </a>
+</div>
+
+<div class="card border-0 shadow-sm">
+  <div class="card-body p-0">
+    {% if groups %}
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th class="ps-4">Group Name</th>
+            <th>Description</th>
+            <th>Members</th>
+            <th>SCIM ID</th>
+            <th>Created</th>
+            <th class="pe-4"></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for g in groups %}
+          <tr>
+            <td class="ps-4">
+              <div class="d-flex align-items-center gap-2">
+                <div class="rounded-circle d-flex align-items-center justify-content-center"
+                     style="width:36px;height:36px;background:#f3eef8;color:#6f42c1;font-weight:600;flex-shrink:0">
+                  <i class="bi bi-collection-fill" style="font-size:.9rem"></i>
+                </div>
+                <span class="fw-semibold">{{ g.display_name }}</span>
+              </div>
+            </td>
+            <td class="text-muted">{{ g.description or '—' }}</td>
+            <td>
+              <a href="/ui/groups/{{ g.id }}/members" class="text-decoration-none">
+                <span class="badge bg-primary-subtle text-primary border border-primary-subtle">
+                  {{ g.member_count }} member{{ 's' if g.member_count != 1 }}
+                </span>
+              </a>
+            </td>
+            <td>
+              {% if g.scim_id %}
+              <code class="small text-muted">{{ g.scim_id[:12] }}…</code>
+              {% else %}
+              <span class="text-muted small">—</span>
+              {% endif %}
+            </td>
+            <td class="text-muted small">{{ g.created_at.strftime('%Y-%m-%d') }}</td>
+            <td class="pe-4 text-end">
+              <a href="/ui/groups/{{ g.id }}/members" class="btn btn-sm btn-outline-primary me-1"
+                 title="Manage members">
+                <i class="bi bi-people"></i>
+              </a>
+              <a href="/ui/groups/{{ g.id }}/edit" class="btn btn-sm btn-outline-secondary me-1">
+                <i class="bi bi-pencil"></i>
+              </a>
+              <form method="post" action="/ui/groups/{{ g.id }}/delete" class="d-inline"
+                    onsubmit="return confirm('Delete group {{ g.display_name }}?')">
+                <button type="submit" class="btn btn-sm btn-outline-danger">
+                  <i class="bi bi-trash"></i>
+                </button>
+              </form>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="text-center py-5 text-muted">
+      <i class="bi bi-collection fs-1 d-block mb-2"></i>
+      No groups yet. <a href="/ui/groups/new">Create the first one.</a>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

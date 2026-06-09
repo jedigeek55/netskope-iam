@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Edit User' if editing else 'New User' }} — Netskope IAM{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="/ui/users">Users</a></li>
+      <li class="breadcrumb-item active">{{ 'Edit' if editing else 'New User' }}</li>
+    </ol>
+  </nav>
+  <h4 class="fw-bold mb-0">{{ 'Edit User' if editing else 'Add New User' }}</h4>
+</div>
+
+<div class="row">
+  <div class="col-lg-6">
+    <div class="card border-0 shadow-sm">
+      <div class="card-body p-4">
+        {% if error %}
+        <div class="alert alert-danger d-flex align-items-center gap-2">
+          <i class="bi bi-exclamation-triangle-fill"></i> {{ error }}
+        </div>
+        {% endif %}
+
+        <form method="post" action="{{ action }}">
+          <div class="row g-3 mb-3">
+            <div class="col-sm-6">
+              <label class="form-label fw-semibold">First Name</label>
+              <input type="text" name="given_name" class="form-control"
+                     value="{{ editing.given_name or (form.given_name if form else '') }}"
+                     placeholder="Jane">
+            </div>
+            <div class="col-sm-6">
+              <label class="form-label fw-semibold">Last Name</label>
+              <input type="text" name="family_name" class="form-control"
+                     value="{{ editing.family_name or (form.family_name if form else '') }}"
+                     placeholder="Smith">
+            </div>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Email <span class="text-danger">*</span></label>
+            <input type="email" name="email" class="form-control" required
+                   value="{{ editing.email if editing else (form.email if form else '') }}"
+                   placeholder="jane.smith@example.com">
+            <div class="form-text">Used as the login username and SCIM identifier.</div>
+          </div>
+
+          <div class="mb-4">
+            <label class="form-label fw-semibold">
+              Password {% if not editing %}<span class="text-danger">*</span>{% endif %}
+            </label>
+            <input type="password" name="password" class="form-control"
+                   {% if not editing %}required{% endif %}
+                   placeholder="{{ 'Leave blank to keep current password' if editing else 'Password' }}">
+          </div>
+
+          <div class="mb-4">
+            <div class="form-check form-switch mb-2">
+              <input class="form-check-input" type="checkbox" name="is_active" id="is_active"
+                     value="on" {% if editing and editing.is_active %}checked{% elif not editing %}checked{% endif %}>
+              <label class="form-check-label" for="is_active">Active</label>
+            </div>
+            <div class="form-check form-switch">
+              <input class="form-check-input" type="checkbox" name="is_admin" id="is_admin"
+                     value="on" {% if editing and editing.is_admin %}checked{% endif %}>
+              <label class="form-check-label" for="is_admin">Admin (can log into this web UI)</label>
+            </div>
+          </div>
+
+          {% if editing and editing.scim_id %}
+          <div class="mb-4 p-3 rounded" style="background:#f8f9fa">
+            <div class="small text-muted mb-1">SCIM ID (Netskope)</div>
+            <code class="small">{{ editing.scim_id }}</code>
+          </div>
+          {% endif %}
+
+          <div class="d-flex gap-2">
+            <button type="submit" class="btn btn-primary px-4">
+              <i class="bi bi-check-lg me-1"></i>{{ 'Save Changes' if editing else 'Create User' }}
+            </button>
+            <a href="/ui/users" class="btn btn-outline-secondary">Cancel</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
