@@ -66,11 +66,11 @@ dnf install -y \
   nginx \
   libxml2-devel libxslt-devel libffi-devel openssl-devel gcc \
   amazon-cloudwatch-agent \
-  augeas-libs
+  augeas-libs \
+  cronie
 
 # certbot via pip (more reliable than dnf on AL2023)
 pip3.12 install --quiet certbot certbot-nginx
-ln -sf "$(python3.12 -c 'import sys; print(sys.exec_prefix)')/bin/certbot" /usr/local/bin/certbot
 
 # ── 2. PostgreSQL init ─────────────────────────────────────────────────────
 log "Step 2/12 — Initialising PostgreSQL 15..."
@@ -225,6 +225,8 @@ NGINX_FINAL
 fi
 
 # Certbot auto-renewal cron
+systemctl enable --now crond
+mkdir -p /etc/cron.d
 echo "0 3 * * * root certbot renew --quiet && nginx -s reload" \
   > /etc/cron.d/certbot-renew
 
