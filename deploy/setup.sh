@@ -78,7 +78,7 @@ postgresql-setup --initdb
 
 # Enable md5 auth for TCP connections from localhost (app uses 127.0.0.1)
 # Insert a specific rule before the catch-all ident line so it matches first
-sed -i '/^host[[:space:]]\+all[[:space:]]\+all[[:space:]]\+127\.0\.0\.1\/32/i host    '"$DB_NAME"'    '"$DB_USER"'    127.0.0.1/32    md5' \
+sed -i '/^host[[:space:]]\+all[[:space:]]\+all[[:space:]]\+127\.0\.0\.1\/32/i host    '"$DB_NAME"'    '"$DB_USER"'    127.0.0.1/32    scram-sha-256' \
   /var/lib/pgsql/data/pg_hba.conf
 
 systemctl enable --now postgresql
