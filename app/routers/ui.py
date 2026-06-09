@@ -6,10 +6,12 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session, selectinload
 
+from ..config import settings
 from ..database import get_db
 from ..models.group import Group
 from ..models.user import User
 from ..services.auth import create_access_token, decode_access_token, hash_password, verify_password
+from ..services.netskope_scim import NetskopeScimClient, sync_import, sync_push
 
 router = APIRouter(prefix="/ui", tags=["ui"])
 templates = Jinja2Templates(directory="app/templates")
@@ -352,3 +354,93 @@ def remove_member(
         group.members.remove(user)
         db.commit()
     return RedirectResponse(f"/ui/groups/{group_id}/members?success=Member+removed", status_code=302)
+
+
+# ── Netskope Sync ─────────────────────────────────────────────────────────────
+
+@router.get("/sync", response_class=HTMLResponse)
+def sync_page(
+    request: Request,
+    db: Session = Depends(get_db),
+    connection: str = "",
+    connection_msg: str = "",
+    sync_result: str = "",
+    sync_error: str = "",
+):
+    auth = _require(request, db)
+    if isinstance(auth, RedirectResponse):
+        return auth
+
+    client = NetskopeScimClient()
+    configured = client.is_configured()
+    synced_users = db.query(User).filter(User.scim_id != None).count()  # noqa: E711
+    synced_groups = db.query(Group).filter(Group.scim_id != None).count()  # noqa: E711
+
+    return templates.TemplateResponse("sync.html", {
+        "request": request,
+        "current_user": auth,
+        "active": "sync",
+        "configured": configured,
+        "netskope_tenant": settings.netskope_tenant,
+        "scim_server_token_set": bool(settings.scim_bearer_token),
+        "total_users": db.query(User).count(),
+        "total_groups": db.query(Group).count(),
+        "synced_users": synced_users,
+        "synced_groups": synced_groups,
+        "connection": connection,
+        "connection_msg": connection_msg,
+        "sync_result": sync_result,
+        "sync_error": sync_error,
+    })
+
+
+@router.post("/sync/test")
+def test_connection(request: Request, db: Session = Depends(get_db)):
+    auth = _require(request, db)
+    if isinstance(auth, RedirectResponse):
+        return auth
+    ok, msg = NetskopeScimClient().test_connection()
+    status = "ok" if ok else "failed"
+    return RedirectResponse(
+        f"/ui/sync?connection={status}&connection_msg={msg.replace(' ', '+')}",
+        status_code=302,
+    )
+
+
+@router.post("/sync/import")
+def import_from_netskope(request: Request, db: Session = Depends(get_db)):
+    auth = _require(request, db)
+    if isinstance(auth, RedirectResponse):
+        return auth
+    try:
+        r = sync_import(db)
+        u = r["users"]
+        g = r["groups"]
+        msg = (
+            f"Users: {u['created']} created, {u['linked']} linked, {u['skipped']} skipped. "
+            f"Groups: {g['created']} created, {g['linked']} linked, {g['skipped']} skipped."
+        )
+        return RedirectResponse(f"/ui/sync?sync_result={msg.replace(' ', '+')}", status_code=302)
+    except Exception as e:
+        return RedirectResponse(f"/ui/sync?sync_error={str(e)[:200].replace(' ', '+')}", status_code=302)
+
+
+@router.post("/sync/push")
+def push_to_netskope(request: Request, db: Session = Depends(get_db)):
+    auth = _require(request, db)
+    if isinstance(auth, RedirectResponse):
+        return auth
+    try:
+        r = sync_push(db)
+        u = r["users"]
+        g = r["groups"]
+        errors = r.get("errors", [])
+        msg = (
+            f"Users: {u['created']} created, {u['matched']} matched in Netskope. "
+            f"Groups: {g['created']} created, {g['matched']} matched."
+        )
+        if errors:
+            msg += f" Errors: {'; '.join(errors[:3])}"
+        return RedirectResponse(f"/ui/sync?sync_result={msg.replace(' ', '+')}", status_code=302)
+    except Exception as e:
+        return RedirectResponse(f"/ui/sync?sync_error={str(e)[:200].replace(' ', '+')}", status_code=302)
