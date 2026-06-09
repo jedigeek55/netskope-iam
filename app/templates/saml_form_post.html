@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Redirecting to {{ sp_name }}…</title>
+  <style>
+    body { font-family: sans-serif; display: flex; align-items: center;
+           justify-content: center; min-height: 100vh; margin: 0;
+           background: #f4f6fb; color: #555; }
+    .msg { text-align: center; }
+    .spinner {
+      width: 36px; height: 36px; border: 3px solid #dce1e9;
+      border-top-color: #3b9ddd; border-radius: 50%;
+      animation: spin .7s linear infinite; margin: 0 auto 1rem;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <div class="msg">
+    <div class="spinner"></div>
+    <p>Signing you in to <strong>{{ sp_name }}</strong>…</p>
+  </div>
+
+  <form id="samlForm" method="post" action="{{ acs_url }}">
+    <input type="hidden" name="SAMLResponse" value="{{ saml_response }}">
+    {% if relay_state %}
+    <input type="hidden" name="RelayState" value="{{ relay_state }}">
+    {% endif %}
+  </form>
+
+  <script>
+    document.getElementById("samlForm").submit();
+  </script>
+</body>
+</html>

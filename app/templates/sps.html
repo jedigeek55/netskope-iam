@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% block title %}Service Providers — Netskope IAM{% endblock %}
+{% block content %}
+<div class="page-header d-flex align-items-center justify-content-between">
+  <div>
+    <h4 class="fw-bold mb-0">Service Providers</h4>
+    <p class="text-muted mb-0 small">SAML 2.0 applications that use this server as their Identity Provider</p>
+  </div>
+  <a href="/ui/service-providers/new" class="btn btn-primary btn-sm">
+    <i class="bi bi-plus-lg me-1"></i>Register SP
+  </a>
+</div>
+
+{% if sps %}
+<div class="card border-0 shadow-sm">
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+      <thead class="table-light">
+        <tr>
+          <th>Name</th>
+          <th>Entity ID</th>
+          <th>ACS URL</th>
+          <th>NameID Format</th>
+          <th>Status</th>
+          <th class="text-end">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for sp in sps %}
+        <tr>
+          <td class="fw-semibold">{{ sp.name }}</td>
+          <td>
+            <code class="small">{{ sp.entity_id }}</code>
+          </td>
+          <td>
+            <code class="small">{{ sp.acs_url }}</code>
+          </td>
+          <td>
+            {% if "emailAddress" in sp.name_id_format %}
+              <span class="badge bg-light text-secondary border">Email</span>
+            {% elif "unspecified" in sp.name_id_format %}
+              <span class="badge bg-light text-secondary border">Unspecified</span>
+            {% elif "persistent" in sp.name_id_format %}
+              <span class="badge bg-light text-secondary border">Persistent</span>
+            {% elif "transient" in sp.name_id_format %}
+              <span class="badge bg-light text-secondary border">Transient</span>
+            {% else %}
+              <span class="badge bg-light text-secondary border">Custom</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if sp.is_active %}
+              <span class="badge bg-success-subtle text-success border border-success-subtle">Active</span>
+            {% else %}
+              <span class="badge bg-secondary-subtle text-secondary border">Inactive</span>
+            {% endif %}
+          </td>
+          <td class="text-end">
+            <a href="/ui/service-providers/{{ sp.id }}/edit"
+               class="btn btn-outline-secondary btn-sm me-1">
+              <i class="bi bi-pencil"></i>
+            </a>
+            <form method="post" action="/ui/service-providers/{{ sp.id }}/delete"
+                  style="display:inline"
+                  onsubmit="return confirm('Delete SP \'{{ sp.name }}\'? This cannot be undone.')">
+              <button type="submit" class="btn btn-outline-danger btn-sm">
+                <i class="bi bi-trash"></i>
+              </button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% else %}
+<div class="card border-0 shadow-sm">
+  <div class="card-body text-center py-5">
+    <i class="bi bi-plug fs-1 text-muted mb-3 d-block"></i>
+    <h5 class="fw-bold">No Service Providers registered</h5>
+    <p class="text-muted mb-3">Register your first SAML SP to enable single sign-on.</p>
+    <a href="/ui/service-providers/new" class="btn btn-primary">
+      <i class="bi bi-plus-lg me-1"></i>Register SP
+    </a>
+  </div>
+</div>
+{% endif %}
+
+<div class="card border-0 shadow-sm mt-3">
+  <div class="card-body">
+    <h6 class="fw-bold mb-2"><i class="bi bi-info-circle me-1 text-primary"></i>Setup Instructions</h6>
+    <ol class="mb-0 small text-muted">
+      <li>Register the SP by entering its Entity ID and Assertion Consumer Service (ACS) URL.</li>
+      <li>Download the <a href="/saml/metadata" target="_blank">IdP Metadata XML</a> and import it into the SP.</li>
+      <li>Or configure the SP manually using the values on the <a href="/saml/idp-info">IdP Info</a> page.</li>
+    </ol>
+  </div>
+</div>
+{% endblock %}

@@ -15,6 +15,13 @@ class Settings(BaseSettings):
     netskope_scim_token: str = ""   # from Netskope: Settings > Tools > Directory Tools > SCIM INTEGRATION
     netskope_verify_ssl: bool = True  # set False only for local dev with SSL inspection
 
+    # SAML IdP
+    idp_entity_id: str = "https://iam.jedigeek5.net"
+    idp_base_url: str = "https://iam.jedigeek5.net"   # public URL of this server
+    saml_key_file: str = "keys/saml_idp.key"
+    saml_cert_file: str = "keys/saml_idp.crt"
+    sso_session_expire_hours: int = 8
+
     model_config = {"env_file": ".env"}
 
 

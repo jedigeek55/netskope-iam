@@ -10,3 +10,5 @@ python-jose[cryptography]==3.3.0
 httpx==0.28.1
 pydantic-settings==2.7.0
 pydantic[email]==2.10.4
+lxml==5.3.1
+signxml==4.0.1

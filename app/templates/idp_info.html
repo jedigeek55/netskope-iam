@@ -1,0 +1,185 @@
+{% extends "base.html" %}
+{% block title %}IdP Info — Netskope IAM{% endblock %}
+{% block content %}
+<div class="page-header d-flex align-items-center justify-content-between">
+  <div>
+    <h4 class="fw-bold mb-0">Identity Provider Info</h4>
+    <p class="text-muted mb-0 small">Configuration values to enter in each Service Provider</p>
+  </div>
+  <a href="/saml/metadata" target="_blank" class="btn btn-outline-primary btn-sm">
+    <i class="bi bi-download me-1"></i>Download Metadata XML
+  </a>
+</div>
+
+<div class="row g-3">
+
+  <!-- Endpoints card -->
+  <div class="col-12">
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-transparent border-bottom fw-semibold">
+        <i class="bi bi-globe2 me-2 text-primary"></i>Endpoints
+      </div>
+      <div class="card-body p-0">
+        <table class="table table-sm align-middle mb-0">
+          <tbody>
+            <tr>
+              <td class="ps-3 py-3 text-muted small fw-semibold" style="width:200px">Entity ID</td>
+              <td class="py-3">
+                <code>{{ entity_id }}</code>
+                <button class="btn btn-link btn-sm py-0 text-muted copy-btn" data-val="{{ entity_id }}" title="Copy">
+                  <i class="bi bi-clipboard"></i>
+                </button>
+              </td>
+            </tr>
+            <tr>
+              <td class="ps-3 py-3 text-muted small fw-semibold">SSO URL</td>
+              <td class="py-3">
+                <code>{{ sso_url }}</code>
+                <button class="btn btn-link btn-sm py-0 text-muted copy-btn" data-val="{{ sso_url }}" title="Copy">
+                  <i class="bi bi-clipboard"></i>
+                </button>
+              </td>
+            </tr>
+            <tr>
+              <td class="ps-3 py-3 text-muted small fw-semibold">Logout URL (SLS)</td>
+              <td class="py-3">
+                <code>{{ sls_url }}</code>
+                <button class="btn btn-link btn-sm py-0 text-muted copy-btn" data-val="{{ sls_url }}" title="Copy">
+                  <i class="bi bi-clipboard"></i>
+                </button>
+              </td>
+            </tr>
+            <tr>
+              <td class="ps-3 py-3 text-muted small fw-semibold">Metadata URL</td>
+              <td class="py-3">
+                <code>{{ metadata_url }}</code>
+                <button class="btn btn-link btn-sm py-0 text-muted copy-btn" data-val="{{ metadata_url }}" title="Copy">
+                  <i class="bi bi-clipboard"></i>
+                </button>
+              </td>
+            </tr>
+            <tr>
+              <td class="ps-3 py-3 text-muted small fw-semibold">Binding</td>
+              <td class="py-3 text-muted">HTTP-Redirect (GET) and HTTP-POST</td>
+            </tr>
+            <tr>
+              <td class="ps-3 py-3 text-muted small fw-semibold">Signature Algorithm</td>
+              <td class="py-3 text-muted">RSA-SHA256</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Certificate card -->
+  <div class="col-12">
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-transparent border-bottom fw-semibold">
+        <i class="bi bi-shield-check me-2 text-success"></i>Signing Certificate
+      </div>
+      <div class="card-body">
+        {% if cert_valid_until %}
+        <div class="mb-3 d-flex gap-3 flex-wrap">
+          <div>
+            <div class="small text-muted">Expires</div>
+            <div class="fw-semibold">{{ cert_valid_until.strftime("%Y-%m-%d") }}</div>
+          </div>
+          <div>
+            <div class="small text-muted">SHA-256 Fingerprint</div>
+            <code class="small">{{ fingerprint }}</code>
+            <button class="btn btn-link btn-sm py-0 text-muted copy-btn" data-val="{{ fingerprint }}" title="Copy">
+              <i class="bi bi-clipboard"></i>
+            </button>
+          </div>
+        </div>
+        {% endif %}
+
+        {% if cert_b64 %}
+        <label class="form-label small fw-semibold">Certificate (Base64 DER)</label>
+        <div class="position-relative">
+          <textarea class="form-control font-monospace small" rows="5" readonly
+                    id="certB64">{{ cert_b64 }}</textarea>
+          <button class="btn btn-outline-secondary btn-sm position-absolute top-0 end-0 m-2 copy-btn"
+                  data-val="{{ cert_b64 }}" title="Copy">
+            <i class="bi bi-clipboard me-1"></i>Copy
+          </button>
+        </div>
+        <div class="form-text mt-1">Paste this into the SP's "IdP Certificate" or "X.509 Certificate" field.</div>
+        {% else %}
+        <div class="alert alert-warning mb-0">
+          <i class="bi bi-exclamation-triangle me-1"></i>
+          No certificate found. Start the server to generate the SAML key pair.
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Attributes card -->
+  <div class="col-12">
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-transparent border-bottom fw-semibold">
+        <i class="bi bi-tags me-2 text-info"></i>Attributes Sent in Assertions
+      </div>
+      <div class="card-body p-0">
+        <table class="table table-sm align-middle mb-0">
+          <thead class="table-light">
+            <tr>
+              <th class="ps-3">Attribute Name</th>
+              <th>Friendly Name</th>
+              <th>Source</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="ps-3"><code class="small">NameID</code></td>
+              <td class="text-muted small">—</td>
+              <td class="text-muted small">User email address</td>
+            </tr>
+            <tr>
+              <td class="ps-3"><code class="small">email</code></td>
+              <td class="text-muted small">Email</td>
+              <td class="text-muted small">User email address</td>
+            </tr>
+            <tr>
+              <td class="ps-3"><code class="small">firstName</code></td>
+              <td class="text-muted small">First Name</td>
+              <td class="text-muted small">User given_name</td>
+            </tr>
+            <tr>
+              <td class="ps-3"><code class="small">lastName</code></td>
+              <td class="text-muted small">Last Name</td>
+              <td class="text-muted small">User family_name</td>
+            </tr>
+            <tr>
+              <td class="ps-3"><code class="small">displayName</code></td>
+              <td class="text-muted small">Display Name</td>
+              <td class="text-muted small">User display_name</td>
+            </tr>
+            <tr>
+              <td class="ps-3"><code class="small">groups</code></td>
+              <td class="text-muted small">Groups</td>
+              <td class="text-muted small">All group display names the user belongs to</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+document.querySelectorAll(".copy-btn").forEach(btn => {
+  btn.addEventListener("click", () => {
+    navigator.clipboard.writeText(btn.dataset.val).then(() => {
+      const icon = btn.querySelector("i");
+      icon.className = "bi bi-check text-success";
+      setTimeout(() => { icon.className = "bi bi-clipboard"; }, 1500);
+    });
+  });
+});
+</script>
+{% endblock %}

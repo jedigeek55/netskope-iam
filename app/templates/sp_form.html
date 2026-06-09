@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+{% block title %}{{ "Edit" if sp else "Register" }} Service Provider — Netskope IAM{% endblock %}
+{% block content %}
+<div class="page-header">
+  <nav aria-label="breadcrumb">
+    <ol class="breadcrumb small">
+      <li class="breadcrumb-item"><a href="/ui/service-providers">Service Providers</a></li>
+      <li class="breadcrumb-item active">{{ "Edit" if sp else "Register New SP" }}</li>
+    </ol>
+  </nav>
+  <h4 class="fw-bold mb-0">{{ "Edit" if sp else "Register" }} Service Provider</h4>
+</div>
+
+<div class="row">
+  <div class="col-lg-8">
+    <div class="card border-0 shadow-sm">
+      <div class="card-body p-4">
+        <form method="post"
+              action="{{ '/ui/service-providers/' + sp.id|string + '/edit' if sp else '/ui/service-providers' }}">
+
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Display Name <span class="text-danger">*</span></label>
+            <input type="text" name="name" class="form-control"
+                   placeholder="e.g. Netskope, My App"
+                   value="{{ sp.name if sp else '' }}" required>
+            <div class="form-text">Human-readable label shown in the SP list.</div>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Entity ID <span class="text-danger">*</span></label>
+            <input type="text" name="entity_id" class="form-control"
+                   placeholder="e.g. https://myapp.example.com/saml/metadata"
+                   value="{{ sp.entity_id if sp else '' }}" required>
+            <div class="form-text">Unique URI that identifies the SP. Found in the SP's SAML metadata.</div>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Assertion Consumer Service (ACS) URL <span class="text-danger">*</span></label>
+            <input type="url" name="acs_url" class="form-control"
+                   placeholder="https://myapp.example.com/saml/acs"
+                   value="{{ sp.acs_url if sp else '' }}" required>
+            <div class="form-text">The URL where the IdP posts the SAML response after authentication.</div>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Single Logout Service (SLO) URL</label>
+            <input type="url" name="slo_url" class="form-control"
+                   placeholder="https://myapp.example.com/saml/slo (optional)"
+                   value="{{ sp.slo_url if sp and sp.slo_url else '' }}">
+            <div class="form-text">Optional. Leave blank if the SP does not support SLO.</div>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label fw-semibold">NameID Format</label>
+            <select name="name_id_format" class="form-select">
+              {% set email_fmt = "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress" %}
+              {% set persist_fmt = "urn:oasis:names:tc:SAML:2.0:nameid-format:persistent" %}
+              {% set transient_fmt = "urn:oasis:names:tc:SAML:2.0:nameid-format:transient" %}
+              {% set unspec_fmt = "urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified" %}
+              {% set cur = sp.name_id_format if sp else email_fmt %}
+              <option value="{{ email_fmt }}" {{ "selected" if cur == email_fmt }}>Email Address (recommended)</option>
+              <option value="{{ persist_fmt }}" {{ "selected" if cur == persist_fmt }}>Persistent</option>
+              <option value="{{ transient_fmt }}" {{ "selected" if cur == transient_fmt }}>Transient</option>
+              <option value="{{ unspec_fmt }}" {{ "selected" if cur == unspec_fmt }}>Unspecified</option>
+            </select>
+          </div>
+
+          <div class="mb-4">
+            <label class="form-label fw-semibold">SP Signing Certificate (PEM)</label>
+            <textarea name="sp_cert" class="form-control font-monospace" rows="6"
+                      placeholder="-----BEGIN CERTIFICATE-----&#10;...&#10;-----END CERTIFICATE-----&#10;(optional — used to verify SP-signed requests)">{{ sp.sp_cert if sp and sp.sp_cert else '' }}</textarea>
+            <div class="form-text">Optional. Paste the SP's X.509 certificate if you want to verify signed AuthnRequests.</div>
+          </div>
+
+          <div class="mb-4">
+            <div class="form-check form-switch">
+              <input class="form-check-input" type="checkbox" name="is_active" id="isActive"
+                     {{ "checked" if (not sp or sp.is_active) }}>
+              <label class="form-check-label" for="isActive">Active</label>
+            </div>
+            <div class="form-text">Inactive SPs will be rejected during SSO flows.</div>
+          </div>
+
+          <div class="d-flex gap-2">
+            <button type="submit" class="btn btn-primary">
+              <i class="bi bi-check-lg me-1"></i>{{ "Save Changes" if sp else "Register SP" }}
+            </button>
+            <a href="/ui/service-providers" class="btn btn-outline-secondary">Cancel</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-4">
+    <div class="card border-0 shadow-sm">
+      <div class="card-body">
+        <h6 class="fw-bold mb-2"><i class="bi bi-info-circle me-1 text-primary"></i>Where to find these values</h6>
+        <p class="small text-muted mb-2">In most SPs, look for a <strong>SAML</strong> or <strong>SSO</strong> settings page. It will show:</p>
+        <ul class="small text-muted mb-3">
+          <li><strong>Entity ID</strong> — also called "Issuer" or "SP Entity ID"</li>
+          <li><strong>ACS URL</strong> — also called "Reply URL" or "SSO URL"</li>
+        </ul>
+        <p class="small text-muted mb-0">After registering, give the SP:</p>
+        <ul class="small text-muted mb-0">
+          <li><a href="/saml/metadata" target="_blank">IdP Metadata XML</a></li>
+          <li>Or manual values from the <a href="/saml/idp-info">IdP Info</a> page</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -29,3 +29,24 @@ def decode_access_token(token: str) -> Optional[dict]:
         return jwt.decode(token, settings.secret_key, algorithms=["HS256"])
     except JWTError:
         return None
+
+
+def create_sso_token(user_id: str) -> str:
+    """SSO session token — valid for any active user (not just admins)."""
+    payload = {
+        "sub": user_id,
+        "type": "sso",
+        "exp": datetime.utcnow() + timedelta(hours=settings.sso_session_expire_hours),
+    }
+    return jwt.encode(payload, settings.secret_key, algorithm="HS256")
+
+
+def decode_sso_token(token: str) -> Optional[str]:
+    """Returns user_id if the SSO token is valid, else None."""
+    try:
+        payload = jwt.decode(token, settings.secret_key, algorithms=["HS256"])
+        if payload.get("type") != "sso":
+            return None
+        return payload.get("sub")
+    except JWTError:
+        return None

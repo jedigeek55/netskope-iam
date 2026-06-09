@@ -9,6 +9,8 @@ from sqlalchemy.orm import Session, selectinload
 from ..config import settings
 from ..database import get_db
 from ..models.group import Group
+from ..models.sp import ServiceProvider
+from ..models.sp import NAME_ID_EMAIL, NAME_ID_PERSISTENT, NAME_ID_TRANSIENT
 from ..models.user import User
 from ..services.auth import create_access_token, decode_access_token, hash_password, verify_password
 from ..services.netskope_scim import NetskopeScimClient, sync_import, sync_push
@@ -444,3 +446,139 @@ def push_to_netskope(request: Request, db: Session = Depends(get_db)):
         return RedirectResponse(f"/ui/sync?sync_result={msg.replace(' ', '+')}", status_code=302)
     except Exception as e:
         return RedirectResponse(f"/ui/sync?sync_error={str(e)[:200].replace(' ', '+')}", status_code=302)
+
+
+# ── Service Providers (SAML SPs) ──────────────────────────────────────────────
+
+NAME_ID_CHOICES = [
+    (NAME_ID_EMAIL, "Email Address"),
+    (NAME_ID_PERSISTENT, "Persistent"),
+    (NAME_ID_TRANSIENT, "Transient"),
+]
+
+
+@router.get("/service-providers", response_class=HTMLResponse)
+def sp_list(request: Request, db: Session = Depends(get_db), success: str = "", error: str = ""):
+    auth = _require(request, db)
+    if isinstance(auth, RedirectResponse):
+        return auth
+    sps = db.query(ServiceProvider).order_by(ServiceProvider.name).all()
+    return templates.TemplateResponse("sps.html", {
+        "request": request, "current_user": auth, "active": "sps",
+        "sps": sps, "success": success, "error": error,
+    })
+
+
+@router.get("/service-providers/new", response_class=HTMLResponse)
+def new_sp_form(request: Request, db: Session = Depends(get_db)):
+    auth = _require(request, db)
+    if isinstance(auth, RedirectResponse):
+        return auth
+    return templates.TemplateResponse("sp_form.html", {
+        "request": request, "current_user": auth, "active": "sps",
+        "editing": None, "action": "/ui/service-providers/new",
+        "error": "", "name_id_choices": NAME_ID_CHOICES,
+        "idp_metadata_url": f"{settings.idp_base_url}/saml/metadata",
+        "idp_sso_url": f"{settings.idp_base_url}/saml/sso",
+        "idp_entity_id": settings.idp_entity_id,
+    })
+
+
+@router.post("/service-providers/new")
+def create_sp(
+    request: Request,
+    db: Session = Depends(get_db),
+    name: str = Form(...),
+    entity_id: str = Form(...),
+    acs_url: str = Form(...),
+    slo_url: str = Form(""),
+    name_id_format: str = Form(NAME_ID_EMAIL),
+    sp_cert: str = Form(""),
+    is_active: Optional[str] = Form(None),
+):
+    auth = _require(request, db)
+    if isinstance(auth, RedirectResponse):
+        return auth
+    if db.query(ServiceProvider).filter(ServiceProvider.entity_id == entity_id).first():
+        return templates.TemplateResponse("sp_form.html", {
+            "request": request, "current_user": auth, "active": "sps",
+            "editing": None, "action": "/ui/service-providers/new",
+            "error": f"A service provider with entity ID '{entity_id}' already exists.",
+            "name_id_choices": NAME_ID_CHOICES,
+            "idp_metadata_url": f"{settings.idp_base_url}/saml/metadata",
+            "idp_sso_url": f"{settings.idp_base_url}/saml/sso",
+            "idp_entity_id": settings.idp_entity_id,
+            "form": {"name": name, "entity_id": entity_id, "acs_url": acs_url},
+        })
+    sp = ServiceProvider(
+        name=name, entity_id=entity_id, acs_url=acs_url,
+        slo_url=slo_url or None,
+        name_id_format=name_id_format,
+        sp_cert=sp_cert.strip() or None,
+        is_active=is_active == "on",
+    )
+    db.add(sp)
+    db.commit()
+    return RedirectResponse(f"/ui/service-providers?success=SP+{name}+registered", status_code=302)
+
+
+@router.get("/service-providers/{sp_id}/edit", response_class=HTMLResponse)
+def edit_sp_form(sp_id: str, request: Request, db: Session = Depends(get_db)):
+    auth = _require(request, db)
+    if isinstance(auth, RedirectResponse):
+        return auth
+    sp = db.query(ServiceProvider).filter(ServiceProvider.id == uuid.UUID(sp_id)).first()
+    if not sp:
+        return RedirectResponse("/ui/service-providers?error=SP+not+found", status_code=302)
+    return templates.TemplateResponse("sp_form.html", {
+        "request": request, "current_user": auth, "active": "sps",
+        "editing": sp, "action": f"/ui/service-providers/{sp_id}/edit",
+        "error": "", "name_id_choices": NAME_ID_CHOICES,
+        "idp_metadata_url": f"{settings.idp_base_url}/saml/metadata",
+        "idp_sso_url": f"{settings.idp_base_url}/saml/sso",
+        "idp_entity_id": settings.idp_entity_id,
+    })
+
+
+@router.post("/service-providers/{sp_id}/edit")
+def update_sp(
+    sp_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    name: str = Form(...),
+    entity_id: str = Form(...),
+    acs_url: str = Form(...),
+    slo_url: str = Form(""),
+    name_id_format: str = Form(NAME_ID_EMAIL),
+    sp_cert: str = Form(""),
+    is_active: Optional[str] = Form(None),
+):
+    auth = _require(request, db)
+    if isinstance(auth, RedirectResponse):
+        return auth
+    sp = db.query(ServiceProvider).filter(ServiceProvider.id == uuid.UUID(sp_id)).first()
+    if not sp:
+        return RedirectResponse("/ui/service-providers?error=SP+not+found", status_code=302)
+    sp.name = name
+    sp.entity_id = entity_id
+    sp.acs_url = acs_url
+    sp.slo_url = slo_url or None
+    sp.name_id_format = name_id_format
+    sp.sp_cert = sp_cert.strip() or None
+    sp.is_active = is_active == "on"
+    db.commit()
+    return RedirectResponse(f"/ui/service-providers?success=SP+{name}+updated", status_code=302)
+
+
+@router.post("/service-providers/{sp_id}/delete")
+def delete_sp(sp_id: str, request: Request, db: Session = Depends(get_db)):
+    auth = _require(request, db)
+    if isinstance(auth, RedirectResponse):
+        return auth
+    sp = db.query(ServiceProvider).filter(ServiceProvider.id == uuid.UUID(sp_id)).first()
+    if not sp:
+        return RedirectResponse("/ui/service-providers?error=SP+not+found", status_code=302)
+    name = sp.name
+    db.delete(sp)
+    db.commit()
+    return RedirectResponse(f"/ui/service-providers?success=SP+{name}+removed", status_code=302)
