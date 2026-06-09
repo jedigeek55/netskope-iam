@@ -74,13 +74,15 @@ ln -sf "$(python3.12 -c 'import sys; print(sys.exec_prefix)')/bin/certbot" /usr/
 
 # ── 2. PostgreSQL init ─────────────────────────────────────────────────────
 log "Step 2/12 — Initialising PostgreSQL 15..."
-postgresql-setup --initdb
-
-# Enable md5 auth for TCP connections from localhost (app uses 127.0.0.1)
-# Insert a specific rule before the catch-all ident line so it matches first
-sed -i '/^host[[:space:]]\+all[[:space:]]\+all[[:space:]]\+127\.0\.0\.1\/32/i host    '"$DB_NAME"'    '"$DB_USER"'    127.0.0.1/32    scram-sha-256' \
-  /var/lib/pgsql/data/pg_hba.conf
-
+if [ ! -f /var/lib/pgsql/data/PG_VERSION ]; then
+  postgresql-setup --initdb
+  # Add scram-sha-256 rule for our DB/user before the catch-all line
+  sed -i '/^host[[:space:]]\+all[[:space:]]\+all[[:space:]]\+127\.0\.0\.1\/32/i host    '"$DB_NAME"'    '"$DB_USER"'    127.0.0.1/32    scram-sha-256' \
+    /var/lib/pgsql/data/pg_hba.conf
+  log "  PostgreSQL initialized."
+else
+  log "  Already initialized, skipping."
+fi
 systemctl enable --now postgresql
 
 # ── 3. Fetch secrets from SSM Parameter Store ──────────────────────────────
