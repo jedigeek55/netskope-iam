@@ -31,9 +31,11 @@ log "Domain:   $DOMAIN"
 log "IAM dir:  $IAM_DIR"
 log "SSL only: ${SSL_ONLY:-no}"
 
-# ── Detect region from IMDS ────────────────────────────────────────────────
-REGION=$(curl -sf http://169.254.169.254/latest/dynamic/instance-identity/document \
-  | python3 -c "import sys,json; print(json.load(sys.stdin)['region'])")
+# ── Detect region from IMDS (IMDSv2 required on AL2023) ───────────────────
+IMDS_TOKEN=$(curl -sfX PUT "http://169.254.169.254/latest/api/token" \
+  -H "X-aws-ec2-metadata-token-ttl-seconds: 300")
+REGION=$(curl -sf -H "X-aws-ec2-metadata-token: $IMDS_TOKEN" \
+  "http://169.254.169.254/latest/meta-data/placement/region")
 log "Region: $REGION"
 
 # ── Helper: fetch SSM SecureString ────────────────────────────────────────

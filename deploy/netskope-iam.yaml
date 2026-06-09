@@ -1,6 +1,6 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Description: >
-  Netskope IAM Server — EC2 deployment in the Jedigeek5 Test VPC.
+  Netskope IAM Server - EC2 deployment in the Jedigeek5 Test VPC.
   Provisions a single AL2023 instance in the public subnet, assigns an EIP,
   and bootstraps the IAM server via UserData (which runs deploy/setup.sh from
   the cloned GitHub repo).
@@ -9,7 +9,7 @@ Description: >
 # Prerequisites before deploying:
 #   1. Run deploy/create-ssm-params.sh to populate /netskope-iam/* in SSM
 #   2. Deploy this stack (EC2 + EIP are created)
-#   3. Create an A record: iam.jedigeek5.net → <EIP from Outputs.PublicIP>
+#   3. Create an A record: iam.jedigeek5.net -> <EIP from Outputs.PublicIP>
 #   4. Wait for DNS to propagate, then Let's Encrypt cert is issued automatically
 # ---------------------------------------------------------------------------
 
@@ -17,12 +17,12 @@ Parameters:
   VpcId:
     Type: String
     Default: vpc-0b9201f819b05240e
-    Description: VPC ID — Jedigeek5 Test VPC
+    Description: VPC ID - Jedigeek5 Test VPC
 
   PublicSubnetId:
     Type: String
     Default: subnet-09d1405805a295ead
-    Description: Public subnet (NAT subnet) — IAM server needs a public IP
+    Description: Public subnet (NAT subnet) - IAM server needs a public IP
 
   InstanceType:
     Type: String
@@ -31,9 +31,9 @@ Parameters:
     Description: t3.small is sufficient; upgrade to t3.medium if sluggish
 
   AmiId:
-    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
-    Default: /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64
-    Description: AL2023 AMI — auto-resolved from SSM, no need to update manually
+    Type: AWS::EC2::Image::Id
+    Default: ami-0152204c1a187337c
+    Description: AL2023 AMI ID (us-east-1) - update by resolving /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64
 
   DomainName:
     Type: String
@@ -83,24 +83,24 @@ Resources:
   IamServerSG:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: Netskope IAM Server — HTTPS public, SSH from VPC only
+      GroupDescription: Netskope IAM Server - HTTPS public, SSH from VPC only
       VpcId: !Ref VpcId
       SecurityGroupIngress:
         - IpProtocol: tcp
           FromPort: 80
           ToPort: 80
           CidrIp: 0.0.0.0/0
-          Description: HTTP — Let's Encrypt ACME challenge and redirect to HTTPS
+          Description: HTTP for ACME challenge and redirect to HTTPS
         - IpProtocol: tcp
           FromPort: 443
           ToPort: 443
           CidrIp: 0.0.0.0/0
-          Description: HTTPS — IAM web UI and SAML/SCIM endpoints
+          Description: HTTPS for IAM web UI and SAML/SCIM endpoints
         - IpProtocol: tcp
           FromPort: 22
           ToPort: 22
           CidrIp: 10.10.0.0/16
-          Description: SSH management from within the VPC only
+          Description: SSH management from within VPC only
       Tags:
         - Key: Name
           Value: sg-netskope-iam
@@ -121,7 +121,7 @@ Resources:
             VolumeSize: 20
             VolumeType: gp3
             DeleteOnTermination: true
-      # UserData: minimal bootstrap — clone repo, call setup.sh
+      # UserData: minimal bootstrap - clone repo, call setup.sh
       # setup.sh handles all package installs, DB init, SSL, systemd, CloudWatch
       UserData:
         Fn::Base64: !Sub |
@@ -159,7 +159,7 @@ Resources:
     Type: AWS::EC2::EIPAssociation
     Properties:
       InstanceId: !Ref IamServerInstance
-      EIPAllocationId: !GetAtt IamServerEIP.AllocationId
+      AllocationId: !GetAtt IamServerEIP.AllocationId
 
   # ── CloudWatch Log Groups ──────────────────────────────────────────────────
   AppLogGroup:
@@ -183,7 +183,7 @@ Resources:
 Outputs:
   PublicIP:
     Description: >
-      Elastic IP — create DNS A record: iam.jedigeek5.net → this IP,
+      Elastic IP - create DNS A record: iam.jedigeek5.net -> this IP,
       then Let's Encrypt will issue the certificate automatically.
     Value: !Ref IamServerEIP
 
@@ -196,7 +196,7 @@ Outputs:
     Value: !Sub "https://${DomainName}"
 
   SamlMetadataURL:
-    Description: IdP metadata URL — import into each Service Provider
+    Description: IdP metadata URL - import into each Service Provider
     Value: !Sub "https://${DomainName}/saml/metadata"
 
   SSMSessionCommand:
