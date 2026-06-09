@@ -1,0 +1,31 @@
+[Unit]
+Description=Netskope IAM Server
+Documentation=https://github.com/jedigeek55/netskope-iam
+After=network.target postgresql.service
+Wants=postgresql.service
+
+[Service]
+User=iam
+Group=iam
+WorkingDirectory=/opt/netskope-iam
+EnvironmentFile=/opt/netskope-iam/.env
+
+ExecStart=/opt/netskope-iam/venv/bin/uvicorn app.main:app \
+    --host 127.0.0.1 \
+    --port 8000 \
+    --workers 2 \
+    --access-log \
+    --log-level info
+
+Restart=always
+RestartSec=5
+StandardOutput=append:/var/log/netskope-iam/uvicorn.log
+StandardError=append:/var/log/netskope-iam/uvicorn-error.log
+
+# Harden: no new privileges, read-only system, writable exceptions
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/opt/netskope-iam /var/log/netskope-iam
+
+[Install]
+WantedBy=multi-user.target

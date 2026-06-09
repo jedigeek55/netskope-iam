@@ -1,0 +1,213 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  Netskope IAM Server — EC2 deployment in the Jedigeek5 Test VPC.
+  Provisions a single AL2023 instance in the public subnet, assigns an EIP,
+  and bootstraps the IAM server via UserData (which runs deploy/setup.sh from
+  the cloned GitHub repo).
+
+# ---------------------------------------------------------------------------
+# Prerequisites before deploying:
+#   1. Run deploy/create-ssm-params.sh to populate /netskope-iam/* in SSM
+#   2. Deploy this stack (EC2 + EIP are created)
+#   3. Create an A record: iam.jedigeek5.net → <EIP from Outputs.PublicIP>
+#   4. Wait for DNS to propagate, then Let's Encrypt cert is issued automatically
+# ---------------------------------------------------------------------------
+
+Parameters:
+  VpcId:
+    Type: String
+    Default: vpc-0b9201f819b05240e
+    Description: VPC ID — Jedigeek5 Test VPC
+
+  PublicSubnetId:
+    Type: String
+    Default: subnet-09d1405805a295ead
+    Description: Public subnet (NAT subnet) — IAM server needs a public IP
+
+  InstanceType:
+    Type: String
+    Default: t3.small
+    AllowedValues: [t3.micro, t3.small, t3.medium]
+    Description: t3.small is sufficient; upgrade to t3.medium if sluggish
+
+  AmiId:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64
+    Description: AL2023 AMI — auto-resolved from SSM, no need to update manually
+
+  DomainName:
+    Type: String
+    Default: iam.jedigeek5.net
+    Description: FQDN for the IAM server (must point to EIP after stack creates)
+
+  GitHubRepo:
+    Type: String
+    Default: https://github.com/jedigeek55/netskope-iam.git
+    Description: Git repo to clone on first boot
+
+Resources:
+
+  # ── IAM Role ──────────────────────────────────────────────────────────────
+  IamServerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+        - arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy
+      Policies:
+        - PolicyName: NetskopeIamSsmParameters
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ssm:GetParameter
+                  - ssm:GetParameters
+                  - ssm:GetParametersByPath
+                Resource: !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/netskope-iam/*"
+
+  IamServerInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+        - !Ref IamServerRole
+
+  # ── Security Group ─────────────────────────────────────────────────────────
+  IamServerSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Netskope IAM Server — HTTPS public, SSH from VPC only
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+          Description: HTTP — Let's Encrypt ACME challenge and redirect to HTTPS
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+          Description: HTTPS — IAM web UI and SAML/SCIM endpoints
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 10.10.0.0/16
+          Description: SSH management from within the VPC only
+      Tags:
+        - Key: Name
+          Value: sg-netskope-iam
+
+  # ── EC2 Instance ───────────────────────────────────────────────────────────
+  IamServerInstance:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: !Ref InstanceType
+      ImageId: !Ref AmiId
+      SubnetId: !Ref PublicSubnetId
+      SecurityGroupIds:
+        - !GetAtt IamServerSG.GroupId
+      IamInstanceProfile: !Ref IamServerInstanceProfile
+      BlockDeviceMappings:
+        - DeviceName: /dev/xvda
+          Ebs:
+            VolumeSize: 20
+            VolumeType: gp3
+            DeleteOnTermination: true
+      # UserData: minimal bootstrap — clone repo, call setup.sh
+      # setup.sh handles all package installs, DB init, SSL, systemd, CloudWatch
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          set -euo pipefail
+          exec > /var/log/iam-userdata.log 2>&1
+
+          echo "=== IAM Server UserData bootstrap starting ==="
+
+          dnf update -y
+          dnf install -y git
+
+          git clone ${GitHubRepo} /opt/netskope-iam
+
+          export IAM_DOMAIN="${DomainName}"
+          bash /opt/netskope-iam/deploy/setup.sh 2>&1 | tee /var/log/iam-setup.log
+
+          echo "=== UserData bootstrap complete ==="
+      Tags:
+        - Key: Name
+          Value: netskope-iam-server
+        - Key: Project
+          Value: netskope-iam
+
+  # ── Elastic IP ─────────────────────────────────────────────────────────────
+  IamServerEIP:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+      Tags:
+        - Key: Name
+          Value: netskope-iam-eip
+
+  IamServerEIPAssociation:
+    Type: AWS::EC2::EIPAssociation
+    Properties:
+      InstanceId: !Ref IamServerInstance
+      EIPAllocationId: !GetAtt IamServerEIP.AllocationId
+
+  # ── CloudWatch Log Groups ──────────────────────────────────────────────────
+  AppLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /netskope-iam/app
+      RetentionInDays: 30
+
+  NginxLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /netskope-iam/nginx
+      RetentionInDays: 14
+
+  SetupLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /netskope-iam/setup
+      RetentionInDays: 7
+
+Outputs:
+  PublicIP:
+    Description: >
+      Elastic IP — create DNS A record: iam.jedigeek5.net → this IP,
+      then Let's Encrypt will issue the certificate automatically.
+    Value: !Ref IamServerEIP
+
+  InstanceId:
+    Description: EC2 instance ID (use for SSM Session Manager)
+    Value: !Ref IamServerInstance
+
+  IAMServerURL:
+    Description: IAM server URL (available after DNS propagates and SSL issues)
+    Value: !Sub "https://${DomainName}"
+
+  SamlMetadataURL:
+    Description: IdP metadata URL — import into each Service Provider
+    Value: !Sub "https://${DomainName}/saml/metadata"
+
+  SSMSessionCommand:
+    Description: Open a shell on the instance via SSM (no SSH key needed)
+    Value: !Sub "aws ssm start-session --target ${IamServerInstance} --region ${AWS::Region}"
+
+  SetupLogCommand:
+    Description: Tail the bootstrap log via SSM
+    Value: !Sub >-
+      aws ssm start-session
+      --target ${IamServerInstance}
+      --region ${AWS::Region}
+      --document-name AWS-StartInteractiveCommand
+      --parameters 'command=["tail -f /var/log/iam-setup.log"]'
