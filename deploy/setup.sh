@@ -140,8 +140,11 @@ sudo -u "$IAM_USER" "$IAM_DIR/venv/bin/python" create_admin.py \
 # ── 10. systemd service ────────────────────────────────────────────────────
 log "Step 10/11 — Installing systemd service..."
 cp "$IAM_DIR/deploy/netskope-iam.service" /etc/systemd/system/
+chmod +x "$IAM_DIR/deploy/fix-eni-routing.sh"
+cp "$IAM_DIR/deploy/fix-eni-routing.service" /etc/systemd/system/
 systemctl daemon-reload
 systemctl enable netskope-iam
+systemctl enable --now fix-eni-routing.service
 
 # ── 11. nginx ───────────────────────────────────────────────────────────────
 log "Step 11/11 — Configuring nginx..."

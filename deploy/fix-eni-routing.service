@@ -1,0 +1,12 @@
+[Unit]
+Description=Fix policy routing for secondary ENI (private subnet)
+After=network-online.target cloud-init.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/opt/netskope-iam/deploy/fix-eni-routing.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
