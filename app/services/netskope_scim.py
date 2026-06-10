@@ -10,17 +10,32 @@ Netskope quirks (from API docs):
 from typing import Optional
 
 import httpx
+from sqlalchemy.orm import Session
 
 from ..config import settings
 from ..models.group import Group
+from ..models.netskope_config import NetskopeConfig
 from ..models.user import User
 
 
+def get_netskope_config(db: Optional[Session]) -> Optional[NetskopeConfig]:
+    """Return the saved Netskope connection settings row, if one has been configured via the UI."""
+    if db is None:
+        return None
+    return db.query(NetskopeConfig).filter(NetskopeConfig.id == 1).first()
+
+
 class NetskopeScimClient:
-    def __init__(self) -> None:
-        self.tenant = settings.netskope_tenant
-        self.token = settings.netskope_scim_token
-        self.verify = settings.netskope_verify_ssl
+    def __init__(self, db: Optional[Session] = None) -> None:
+        cfg = get_netskope_config(db)
+        if cfg and cfg.tenant:
+            self.tenant = cfg.tenant
+            self.token = cfg.scim_token or ""
+            self.verify = cfg.verify_ssl
+        else:
+            self.tenant = settings.netskope_tenant
+            self.token = settings.netskope_scim_token
+            self.verify = settings.netskope_verify_ssl
         self.base = f"https://{self.tenant}/api/v2/scim"
         self.headers = {
             "Netskope-Api-Token": self.token,
@@ -165,7 +180,7 @@ def sync_import(db) -> dict:
     - Creates local users/groups that don't exist yet.
     - Sets scim_id on existing records that are missing it.
     """
-    client = NetskopeScimClient()
+    client = NetskopeScimClient(db)
     results = {"users": {}, "groups": {}}
 
     # ── Users ──────────────────────────────────────────────────────────────
@@ -236,7 +251,7 @@ def sync_push(db) -> dict:
     - If the user/group already exists in Netskope (matched by email/name), links the ID.
     - Otherwise creates a new record in Netskope.
     """
-    client = NetskopeScimClient()
+    client = NetskopeScimClient(db)
     results = {"users": {}, "groups": {}}
     errors: list[str] = []
 

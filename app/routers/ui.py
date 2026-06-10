@@ -9,11 +9,12 @@ from sqlalchemy.orm import Session, selectinload
 from ..config import settings
 from ..database import get_db
 from ..models.group import Group
+from ..models.netskope_config import NetskopeConfig
 from ..models.sp import ServiceProvider
 from ..models.sp import NAME_ID_EMAIL, NAME_ID_PERSISTENT, NAME_ID_TRANSIENT
 from ..models.user import User
 from ..services.auth import create_access_token, decode_access_token, hash_password, verify_password
-from ..services.netskope_scim import NetskopeScimClient, sync_import, sync_push
+from ..services.netskope_scim import NetskopeScimClient, get_netskope_config, sync_import, sync_push
 
 router = APIRouter(prefix="/ui", tags=["ui"])
 templates = Jinja2Templates(directory="app/templates")
@@ -373,8 +374,9 @@ def sync_page(
     if isinstance(auth, RedirectResponse):
         return auth
 
-    client = NetskopeScimClient()
+    client = NetskopeScimClient(db)
     configured = client.is_configured()
+    cfg = get_netskope_config(db)
     synced_users = db.query(User).filter(User.scim_id != None).count()  # noqa: E711
     synced_groups = db.query(Group).filter(Group.scim_id != None).count()  # noqa: E711
 
@@ -383,7 +385,10 @@ def sync_page(
         "current_user": auth,
         "active": "sync",
         "configured": configured,
-        "netskope_tenant": settings.netskope_tenant,
+        "netskope_tenant": client.tenant,
+        "netskope_token_set": bool(client.token),
+        "netskope_verify_ssl": client.verify,
+        "using_custom_config": bool(cfg and cfg.tenant),
         "scim_server_token_set": bool(settings.scim_bearer_token),
         "total_users": db.query(User).count(),
         "total_groups": db.query(Group).count(),
@@ -401,12 +406,52 @@ def test_connection(request: Request, db: Session = Depends(get_db)):
     auth = _require(request, db)
     if isinstance(auth, RedirectResponse):
         return auth
-    ok, msg = NetskopeScimClient().test_connection()
+    ok, msg = NetskopeScimClient(db).test_connection()
     status = "ok" if ok else "failed"
     return RedirectResponse(
         f"/ui/sync?connection={status}&connection_msg={msg.replace(' ', '+')}",
         status_code=302,
     )
+
+
+@router.post("/sync/config")
+def save_netskope_config(
+    request: Request,
+    db: Session = Depends(get_db),
+    tenant: str = Form(""),
+    scim_token: str = Form(""),
+    verify_ssl: Optional[str] = Form(None),
+):
+    auth = _require(request, db)
+    if isinstance(auth, RedirectResponse):
+        return auth
+
+    cfg = db.query(NetskopeConfig).filter(NetskopeConfig.id == 1).first()
+    if not cfg:
+        cfg = NetskopeConfig(id=1)
+        db.add(cfg)
+
+    cfg.tenant = tenant.strip() or None
+    if scim_token.strip():
+        cfg.scim_token = scim_token.strip()
+    cfg.verify_ssl = verify_ssl is not None
+    db.commit()
+
+    return RedirectResponse("/ui/sync?sync_result=Netskope+connection+settings+saved", status_code=302)
+
+
+@router.post("/sync/config/clear")
+def clear_netskope_config(request: Request, db: Session = Depends(get_db)):
+    auth = _require(request, db)
+    if isinstance(auth, RedirectResponse):
+        return auth
+
+    cfg = db.query(NetskopeConfig).filter(NetskopeConfig.id == 1).first()
+    if cfg:
+        db.delete(cfg)
+        db.commit()
+
+    return RedirectResponse("/ui/sync?sync_result=Reverted+to+.env+defaults", status_code=302)
 
 
 @router.post("/sync/import")

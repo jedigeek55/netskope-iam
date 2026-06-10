@@ -50,6 +50,14 @@
             <span class="badge bg-danger-subtle text-danger border border-danger-subtle">Not set</span>
             {% endif %}
           </dd>
+          <dt class="col-sm-5 text-muted">Source</dt>
+          <dd class="col-sm-7">
+            {% if using_custom_config %}
+            <span class="badge bg-info-subtle text-info border border-info-subtle">Custom (saved in UI)</span>
+            {% else %}
+            <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle">.env defaults</span>
+            {% endif %}
+          </dd>
           {% if connection %}
           <dt class="col-sm-5 text-muted">Last Test</dt>
           <dd class="col-sm-7">
@@ -63,18 +71,50 @@
         </dl>
 
         {% if configured %}
-        <form method="post" action="/ui/sync/test" class="mt-3">
+        <form method="post" action="/ui/sync/test" class="mt-3 d-inline">
           <button type="submit" class="btn btn-sm btn-outline-primary">
             <i class="bi bi-wifi me-1"></i>Test Connection
           </button>
         </form>
         {% else %}
         <div class="alert alert-warning mt-3 mb-0 small">
-          <strong>Setup required:</strong> Set <code>NETSKOPE_TENANT</code> and
-          <code>NETSKOPE_SCIM_TOKEN</code> in your <code>.env</code> file.<br>
+          <strong>Setup required:</strong> Enter your tenant hostname and SCIM token below,
+          or set <code>NETSKOPE_TENANT</code> / <code>NETSKOPE_SCIM_TOKEN</code> in <code>.env</code>.<br>
           Generate the token in Netskope: <em>Settings → Tools → Directory Tools → SCIM INTEGRATION → Add Token</em>
         </div>
         {% endif %}
+
+        <hr>
+
+        <!-- Connection settings form -->
+        <form method="post" action="/ui/sync/config">
+          <div class="mb-2">
+            <label for="tenant" class="form-label small text-muted mb-1">Tenant Hostname</label>
+            <input type="text" class="form-control form-control-sm" id="tenant" name="tenant"
+                   placeholder="yourtenant.goskope.com" value="{{ netskope_tenant or '' }}">
+          </div>
+          <div class="mb-2">
+            <label for="scim_token" class="form-label small text-muted mb-1">SCIM API Token</label>
+            <input type="password" class="form-control form-control-sm" id="scim_token" name="scim_token"
+                   placeholder="{% if netskope_token_set %}•••••••••••••••• (leave blank to keep current){% else %}Paste SCIM API token{% endif %}"
+                   autocomplete="off">
+          </div>
+          <div class="form-check mb-2">
+            <input type="checkbox" class="form-check-input" id="verify_ssl" name="verify_ssl"
+                   {% if netskope_verify_ssl %}checked{% endif %}>
+            <label for="verify_ssl" class="form-check-label small text-muted">Verify TLS certificate</label>
+          </div>
+          <div class="d-flex gap-2">
+            <button type="submit" class="btn btn-sm btn-primary">
+              <i class="bi bi-save me-1"></i>Save
+            </button>
+            {% if using_custom_config %}
+            <button type="submit" formaction="/ui/sync/config/clear" class="btn btn-sm btn-outline-secondary">
+              Reset to .env defaults
+            </button>
+            {% endif %}
+          </div>
+        </form>
       </div>
     </div>
 
