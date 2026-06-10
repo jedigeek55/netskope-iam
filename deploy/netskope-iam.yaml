@@ -1,16 +1,18 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Description: >
   Netskope IAM Server - EC2 deployment in the Jedigeek5 Test VPC.
-  Provisions a single AL2023 instance in the public subnet, assigns an EIP,
-  and bootstraps the IAM server via UserData (which runs deploy/setup.sh from
-  the cloned GitHub repo).
+  Provisions a single AL2023 instance with a primary ENI in the public
+  subnet (outbound internet via the existing NAT instance, no EIP) and a
+  secondary ENI in the private subnet (10.10.2.0/24) which is the only
+  network the server is reachable from. Bootstraps via UserData (which runs
+  deploy/setup.sh from the cloned GitHub repo). HTTP only, no public access.
 
 # ---------------------------------------------------------------------------
 # Prerequisites before deploying:
 #   1. Run deploy/create-ssm-params.sh to populate /netskope-iam/* in SSM
-#   2. Deploy this stack (EC2 + EIP are created)
-#   3. Create an A record: iam.jedigeek5.net -> <EIP from Outputs.PublicIP>
-#   4. Wait for DNS to propagate, then Let's Encrypt cert is issued automatically
+#   2. Deploy this stack
+#   3. Create a DNS record (or hosts entry): iam.jedigeek5.net -> <Outputs.PrivateIP>
+#      for hosts on the 10.10.2.0/24 subnet
 # ---------------------------------------------------------------------------
 
 Parameters:
@@ -22,7 +24,12 @@ Parameters:
   PublicSubnetId:
     Type: String
     Default: subnet-09d1405805a295ead
-    Description: Public subnet (NAT subnet) - IAM server needs a public IP
+    Description: Public subnet - hosts the instance's primary ENI (no public IP is assigned)
+
+  PrivateSubnetId:
+    Type: String
+    Default: subnet-0af58a53bffe0b9c1
+    Description: Private subnet (10.10.2.0/24) - IAM server is reachable only from here
 
   InstanceType:
     Type: String
@@ -83,19 +90,14 @@ Resources:
   IamServerSG:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: Netskope IAM Server - HTTPS public, SSH from VPC only
+      GroupDescription: Netskope IAM Server - HTTP from private subnet only, SSH from VPC
       VpcId: !Ref VpcId
       SecurityGroupIngress:
         - IpProtocol: tcp
           FromPort: 80
           ToPort: 80
-          CidrIp: 0.0.0.0/0
-          Description: HTTP for ACME challenge and redirect to HTTPS
-        - IpProtocol: tcp
-          FromPort: 443
-          ToPort: 443
-          CidrIp: 0.0.0.0/0
-          Description: HTTPS for IAM web UI and SAML/SCIM endpoints
+          CidrIp: 10.10.2.0/24
+          Description: HTTP for IAM web UI, SAML and SCIM endpoints - private subnet only
         - IpProtocol: tcp
           FromPort: 22
           ToPort: 22
@@ -146,20 +148,28 @@ Resources:
         - Key: Project
           Value: netskope-iam
 
-  # ── Elastic IP ─────────────────────────────────────────────────────────────
-  IamServerEIP:
-    Type: AWS::EC2::EIP
+  # ── Private subnet interface ────────────────────────────────────────────────
+  # Secondary ENI on 10.10.2.0/24 - this is the address clients use to reach
+  # the IAM server. The primary ENI (public subnet) keeps outbound internet
+  # access for SSM/dnf/pip/git via the existing NAT instance, but has no EIP
+  # and is not reachable from outside the VPC.
+  IamServerPrivateEni:
+    Type: AWS::EC2::NetworkInterface
     Properties:
-      Domain: vpc
+      SubnetId: !Ref PrivateSubnetId
+      GroupSet:
+        - !GetAtt IamServerSG.GroupId
+      Description: Netskope IAM server - private subnet interface
       Tags:
         - Key: Name
-          Value: netskope-iam-eip
+          Value: netskope-iam-private-eni
 
-  IamServerEIPAssociation:
-    Type: AWS::EC2::EIPAssociation
+  IamServerEniAttachment:
+    Type: AWS::EC2::NetworkInterfaceAttachment
     Properties:
       InstanceId: !Ref IamServerInstance
-      AllocationId: !GetAtt IamServerEIP.AllocationId
+      NetworkInterfaceId: !Ref IamServerPrivateEni
+      DeviceIndex: 1
 
   # ── CloudWatch Log Groups ──────────────────────────────────────────────────
   AppLogGroup:
@@ -181,23 +191,23 @@ Resources:
       RetentionInDays: 7
 
 Outputs:
-  PublicIP:
+  PrivateIP:
     Description: >
-      Elastic IP - create DNS A record: iam.jedigeek5.net -> this IP,
-      then Let's Encrypt will issue the certificate automatically.
-    Value: !Ref IamServerEIP
+      Private IP on 10.10.2.0/24 - create a DNS record (or hosts entry)
+      iam.jedigeek5.net -> this IP for clients on that subnet.
+    Value: !GetAtt IamServerPrivateEni.PrimaryPrivateIpAddress
 
   InstanceId:
     Description: EC2 instance ID (use for SSM Session Manager)
     Value: !Ref IamServerInstance
 
   IAMServerURL:
-    Description: IAM server URL (available after DNS propagates and SSL issues)
-    Value: !Sub "https://${DomainName}"
+    Description: IAM server URL (HTTP only, reachable from 10.10.2.0/24)
+    Value: !Sub "http://${DomainName}"
 
   SamlMetadataURL:
     Description: IdP metadata URL - import into each Service Provider
-    Value: !Sub "https://${DomainName}/saml/metadata"
+    Value: !Sub "http://${DomainName}/saml/metadata"
 
   SSMSessionCommand:
     Description: Open a shell on the instance via SSM (no SSH key needed)
