@@ -164,17 +164,12 @@ Resources:
         - Key: Name
           Value: netskope-iam-private-eni
 
-  # NOTE: IamServerEniAttachment temporarily removed (2026-06-09) - attaching
-  # this ENI broke routing for eth0 (SSM/dnf/pip lost connectivity). The ENI
-  # itself is retained so its private IP allocation is preserved; it will be
-  # re-attached once the instance has policy-based routing configured for
-  # secondary interfaces (see deploy/setup.sh).
-  # IamServerEniAttachment:
-  #   Type: AWS::EC2::NetworkInterfaceAttachment
-  #   Properties:
-  #     InstanceId: !Ref IamServerInstance
-  #     NetworkInterfaceId: !Ref IamServerPrivateEni
-  #     DeviceIndex: 1
+  IamServerEniAttachment:
+    Type: AWS::EC2::NetworkInterfaceAttachment
+    Properties:
+      InstanceId: !Ref IamServerInstance
+      NetworkInterfaceId: !Ref IamServerPrivateEni
+      DeviceIndex: 1
 
   # ── CloudWatch Log Groups ──────────────────────────────────────────────────
   AppLogGroup:
